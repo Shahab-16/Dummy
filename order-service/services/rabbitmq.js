@@ -4,7 +4,6 @@ class RabbitMQ {
   constructor() {
     this.connection = null;
     this.channel = null;
-    this.queues = {};
   }
 
   async connect() {
@@ -13,7 +12,7 @@ class RabbitMQ {
     try {
       this.connection = await amqp.connect(process.env.RABBITMQ_URL);
       this.channel = await this.connection.createChannel();
-      console.log('Connected to RabbitMQ');
+      console.log('Order Service connected to RabbitMQ');
     } catch (error) {
       console.error('RabbitMQ connection error:', error);
       setTimeout(() => this.connect(), 5000);
@@ -23,28 +22,26 @@ class RabbitMQ {
   async createQueue(queueName) {
     if (!this.channel) await this.connect();
     await this.channel.assertQueue(queueName, { durable: true });
-    this.queues[queueName] = true;
     return queueName;
   }
 
-  async publish(queueName, message) {
-    if (!this.queues[queueName]) {
-      await this.createQueue(queueName);
-    }
+  async publish(exchange, routingKey, message) {
+    if (!this.channel) await this.connect();
     
-    this.channel.sendToQueue(
-      queueName,
+    await this.channel.assertExchange(exchange, 'topic', { durable: true });
+    this.channel.publish(
+      exchange,
+      routingKey,
       Buffer.from(JSON.stringify(message)),
       { persistent: true }
     );
-    console.log(`Published to ${queueName}:`, message);
+    console.log(`Published to ${exchange}.${routingKey}:`, message);
   }
 
   async consume(queueName, callback) {
-    if (!this.queues[queueName]) {
-      await this.createQueue(queueName);
-    }
+    if (!this.channel) await this.connect();
     
+    await this.channel.assertQueue(queueName, { durable: true });
     this.channel.consume(queueName, (msg) => {
       if (msg !== null) {
         const content = JSON.parse(msg.content.toString());

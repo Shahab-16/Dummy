@@ -1,7 +1,8 @@
 const Order = require("../models/order.model");
 const eventService = require("../services/eventService");
-const mongoose = require("mongoose");
+const axios = require("axios");
 
+// Create a new order
 exports.createOrder = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -40,13 +41,17 @@ exports.createOrder = async (req, res) => {
     res.status(201).json({
       message: "Order created successfully",
       order,
-      paymentRedirect: `/api/orders/${order._id}/payment`
+      paymentInitiation: {
+        method: "POST",
+        url: `${process.env.PAYMENT_SERVICE_URL}/api/payments/order/${order._id}`
+      }
     });
   } catch (error) {
     res.status(500).json({ message: "Order creation failed", error: error.message });
   }
 };
 
+// Get order by ID
 exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -66,6 +71,7 @@ exports.getOrderById = async (req, res) => {
   }
 };
 
+// Get user orders
 exports.getUserOrders = async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.user._id })
@@ -77,6 +83,7 @@ exports.getUserOrders = async (req, res) => {
   }
 };
 
+// Cancel order
 exports.cancelOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -92,7 +99,7 @@ exports.cancelOrder = async (req, res) => {
     
     // Only pending orders can be cancelled
     if (order.status !== "pending") {
-      return res.status(400).json({ message: "Order cannot be cancelled at this stage" });
+      return res.status(400).json({ message: "Order cannot be cancelled" });
     }
     
     order.status = "cancelled";
@@ -110,42 +117,39 @@ exports.cancelOrder = async (req, res) => {
   }
 };
 
-// Admin-only endpoints
-exports.getAllOrders = async (req, res) => {
+// Webhook for payment service to update payment status
+exports.updatePaymentStatus = async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
-
-exports.updateOrderStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const validStatuses = ["processing", "shipped", "delivered", "cancelled"];
+    const { orderId, status } = req.body;
     
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
+    // Validate status
+    if (!["completed", "failed"].includes(status)) {
+      return res.status(400).json({ message: "Invalid payment status" });
     }
-
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-
+    
+    const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
     
+    // Update payment status
+    order.paymentStatus = status;
+    
+    // If payment failed, cancel order
+    if (status === "failed") {
+      order.status = "cancelled";
+    }
+    
+    await order.save();
+    
     // Publish ORDER_UPDATED event
     await eventService.publishOrderUpdated({
       orderId: order._id,
-      status: order.status
+      status: order.status,
+      paymentStatus: order.paymentStatus
     });
-
-    res.json({ message: "Order status updated", order });
+    
+    res.json({ message: "Payment status updated", order });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

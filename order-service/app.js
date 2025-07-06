@@ -1,9 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
-const cookieParser = require("cookie-parser");
 const orderRoutes = require("./routes/order.routes");
-const paymentRoutes = require("./routes/payment.routes");
 const eventService = require("./services/eventService");
 
 const app = express();
@@ -13,19 +11,35 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log("MongoDB connected"))
+.then(() => console.log("Order Service MongoDB connected"))
 .catch(err => console.error("MongoDB connection error:", err));
 
 // Middleware
 app.use(express.json());
-app.use(cookieParser());
 
 // Initialize RabbitMQ
 eventService.init();
 
+// Setup payment status consumer
+eventService.consumePaymentProcessed(async (message) => {
+  if (message.event === "PAYMENT_PROCESSED") {
+    // Call webhook to update order status
+    try {
+      await axios.post(
+        `${process.env.ORDER_SERVICE_URL}/api/orders/payment-webhook`,
+        {
+          orderId: message.data.orderId,
+          status: message.data.status
+        }
+      );
+    } catch (error) {
+      console.error("Failed to update payment status:", error);
+    }
+  }
+});
+
 // Routes
 app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
