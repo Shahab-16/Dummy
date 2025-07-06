@@ -1,4 +1,5 @@
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 const admins = [
   { email: "shahab@gmail.com", password: "12345678", name: "Shahab" },
@@ -6,15 +7,14 @@ const admins = [
   { email: "arsalan@gmail.com", password: "12345678", name: "Arsalan" },
 ];
 
+// PRODUCT_SERVICE config
+const PRODUCT_SERVICE_URL = "http://localhost:5003/api/products";
+
 exports.login = (req, res) => {
   const { email, password } = req.body;
-
-  const admin = admins.find(
-    (a) => a.email === email && a.password === password
-  );
-
-  if (!admin)
-    return res.status(401).json({ message: "Invalid email or password" });
+  const admin = admins.find(a => a.email === email && a.password === password);
+  
+  if (!admin) return res.status(401).json({ message: "Invalid email or password" });
 
   const token = jwt.sign({ email: admin.email, name: admin.name }, process.env.JWT_SECRET, {
     expiresIn: "1h",
@@ -22,7 +22,7 @@ exports.login = (req, res) => {
 
   res.cookie("adminToken", token, { httpOnly: true }).json({
     message: "Login successful",
-    admin: { email: admin.email, name: admin.name },
+    admin: { email: admin.email, name: admin.name, token },
   });
 };
 
@@ -40,4 +40,51 @@ exports.getAdminInfo = (req, res) => {
 
 exports.logout = (req, res) => {
   res.clearCookie("adminToken").json({ message: "Admin logged out" });
+};
+
+// Add new product
+exports.addProduct = async (req, res) => {
+  try {
+    const token = req.cookies.adminToken;
+    const response = await axios.post(PRODUCT_SERVICE_URL, req.body, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    const status = error.response?.status || 500;
+    const data = error.response?.data || { message: 'Product service error' };
+    res.status(status).json(data);
+  }
+};
+
+// Remove product
+exports.removeProduct = async (req, res) => {
+  try {
+    const token = req.cookies.adminToken;
+    const { id } = req.params;
+    const response = await axios.delete(`${PRODUCT_SERVICE_URL}/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    const status = error.response?.status || 500;
+    const data = error.response?.data || { message: 'Product service error' };
+    res.status(status).json(data);
+  }
+};
+
+// List all products
+exports.listAllProducts = async (req, res) => {
+  try {
+    const response = await axios.get(PRODUCT_SERVICE_URL);
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    const status = error.response?.status || 500;
+    const data = error.response?.data || { message: 'Product service error' };
+    res.status(status).json(data);
+  }
 };

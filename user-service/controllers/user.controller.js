@@ -1,113 +1,81 @@
 const User = require("../models/user.model");
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 exports.register = async (req, res) => {
   try {
-    const { userName, email, password } = req.body;
-
+    const { name, email, password } = req.body;
+    
+    // Check if user exists
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+    if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ userName, email, password: hashedPassword });
-
+    }
+    
+    // Create user
+    const user = new User({ name, email, password });
     await user.save();
-    res.status(201).json({ message: "User created", userId: user._id });
+    
+    // Generate token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d"
+    });
+    
+    res.status(201).json({
+      message: "User registered successfully",
+      user: { id: user._id, name: user.name, email: user.email },
+      token
+    });
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: "Registration failed", error: error.message });
   }
 };
 
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+    
+    // Find user
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ message: "User not found" });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid credentials" });
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    res.cookie("token", token, { httpOnly: true });
-    res.status(200).json({ message: "Login successful", user });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).select("-password");
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.status(200).json({ user });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getLogout = (req, res) => {
-  res.clearCookie("token").json({ message: "Logged out" });
-};
-
-exports.postGoogleSignin = async (req, res) => {
-  try {
-    const { email, userName } = req.body;
-
-    let user = await User.findOne({ email });
-
     if (!user) {
-      user = new User({ email, userName, password: "google-oauth" });
-      await user.save();
+      return res.status(401).json({ message: "Invalid credentials" });
     }
-
+    
+    // Simple password check (in real apps, use bcrypt)
+    if (user.password !== password) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+    
+    // Generate token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+      expiresIn: "1d"
     });
-
-    res.cookie("token", token, { httpOnly: true });
-    res.status(200).json({ message: "Google login success", user });
+    
+    res.json({
+      message: "Login successful",
+      user: { id: user._id, name: user.name, email: user.email,token},
+      token
+    });
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: "Login failed", error: error.message });
   }
 };
 
-exports.likeProduct = async (req, res) => {
+exports.getUserProfile = async (req, res) => {
   try {
-    const { userId, productId } = req.body;
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (!user.likedProducts.includes(productId)) {
-      user.likedProducts.push(productId);
-    } else {
-      user.likedProducts = user.likedProducts.filter(
-        (id) => id.toString() !== productId
-      );
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
-
-    await user.save();
-    res.status(200).json({ likedProducts: user.likedProducts });
+    
+    res.json(user);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-
-exports.getLikedProducts = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.status(200).json({ likedProducts: user.likedProducts });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+exports.logout = (req, res) => {
+  // JWT is stateless, so logout is handled client-side
+  res.json({ message: "Logged out successfully" });
 };

@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller");
+const cartRoutes = require("./cart.routes");
 
-router.post("/login", userController.login);
+// Authentication routes
 router.post("/register", userController.register);
-router.get("/user/:id", userController.getUser);
-router.get("/logout", userController.getLogout);
-router.post("/googlesignin", userController.postGoogleSignin);
-router.post("/likeproduct", userController.likeProduct);
+router.post("/login", userController.login);
+router.get("/logout", userController.logout);
+router.get("/me", userController.getUserProfile);
+
+// Cart routes
+router.use("/cart", cartRoutes);
 
 module.exports = router;

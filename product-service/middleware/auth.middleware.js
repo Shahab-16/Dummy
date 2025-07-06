@@ -1,14 +1,14 @@
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {
-  const token = req.cookies.adminToken;
-  if (!token) return res.sendStatus(401);
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Authentication required' });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.admin = decoded;
     next();
-  } catch {
-    res.sendStatus(403);
+  } catch (err) {
+    res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
