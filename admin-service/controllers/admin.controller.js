@@ -1,5 +1,10 @@
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const {
+  publishProductCreated,
+  publishProductDeleted,
+} = require("../events/publisher");
+
 
 const admins = [
   { email: "shahab@gmail.com", password: "12345678", name: "Shahab" },
@@ -46,11 +51,17 @@ exports.logout = (req, res) => {
 exports.addProduct = async (req, res) => {
   try {
     const token = req.cookies.adminToken;
+    console.log('token', token);
     const response = await axios.post(PRODUCT_SERVICE_URL, req.body, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
+
+    console.log('products are', response.data);
+
+    await publishProductCreated(response.data);
+
     res.status(response.status).json(response.data);
   } catch (error) {
     const status = error.response?.status || 500;
@@ -69,6 +80,10 @@ exports.removeProduct = async (req, res) => {
         Authorization: `Bearer ${token}`
       }
     });
+
+    // ✅ Publish delete event to RabbitMQ
+    await publishProductDeleted(id);
+    
     res.status(response.status).json(response.data);
   } catch (error) {
     const status = error.response?.status || 500;

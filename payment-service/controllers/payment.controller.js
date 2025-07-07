@@ -1,5 +1,5 @@
 const Payment = require("../models/payment.model");
-const eventService = require("../services/eventService");
+const eventService = require("../services/eventManager");
 const axios = require("axios");
 
 // Mock payment processing

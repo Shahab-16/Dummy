@@ -1,5 +1,5 @@
 const Order = require("../models/order.model");
-const eventService = require("../services/eventService");
+const eventService = require("../services/eventManager");
 const axios = require("axios");
 
 // Create a new order
