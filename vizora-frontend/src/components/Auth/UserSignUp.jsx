@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
 import { ClosedEye, Google, OpenEye } from "../../assets/icons";
-import { Formik, Form, Field } from "formik";
-import * as Yup from "yup";
 import page_break from "../../assets/images/page_break.png";
 import { Link } from "react-router-dom";
 import UserContext from "../../context/userContext";
@@ -14,6 +12,16 @@ const SignUp = () => {
   const [view, setView] = useState("password");
   const [showBackground, setShowBackground] = useState(window.innerWidth > 1140);
 
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+    agreeToTerms: false,
+  });
+
+  const [errors, setErrors] = useState({});
+
   useEffect(() => {
     const handleResize = () => setShowBackground(window.innerWidth > 1140);
     document.body.style.backgroundColor = "#cfdfe0";
@@ -24,13 +32,43 @@ const SignUp = () => {
     };
   }, []);
 
-  const SignupValidationSchema = Yup.object().shape({
-    name: Yup.string().min(3, "Too Short!").max(50, "Too Long!").required("Required"),
-    email: Yup.string().email("Invalid email").required("Required"),
-    password: Yup.string().min(5, "Too Short!").max(50, "Too Long!").required("Required"),
-    phone: Yup.string().length(10, "Must be 10 digits").required("Required"),
-    agreeToTerms: Yup.bool().oneOf([true], "Accept Terms & Conditions is required"),
-  });
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (formData.name.trim().length < 3) {
+      newErrors.name = "Too Short!";
+    }
+    if (!formData.email.includes("@")) {
+      newErrors.email = "Invalid email";
+    }
+    if (formData.password.length < 5) {
+      newErrors.password = "Password too short";
+    }
+    if (formData.phone.length !== 10 || isNaN(formData.phone)) {
+      newErrors.phone = "Must be 10 digits";
+    }
+    if (!formData.agreeToTerms) {
+      newErrors.agreeToTerms = "You must accept Terms & Conditions";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (validate()) {
+      signup(formData);
+    }
+  };
 
   return (
     <div className="h-screen w-screen flex">
@@ -47,89 +85,84 @@ const SignUp = () => {
             Create Account
           </h2>
 
-          <Formik
-            initialValues={{
-              name: "",
-              email: "",
-              password: "",
-              phone: "",
-              agreeToTerms: false,
-            }}
-            validationSchema={SignupValidationSchema}
-            onSubmit={(values) => signup(values)}
-          >
-            {({ errors, touched }) => (
-              <Form>
-                <div className="mb-4">
-                  <Field
-                    type="text"
-                    name="name"
-                    placeholder="Full Name"
-                    className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4 focus:ring-2 focus:ring-purple-400 transition-all duration-200"
-                  />
-                  <div className="text-red-500 text-sm mt-1">
-                    {errors.name && touched.name && errors.name}
-                  </div>
-                </div>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-4">
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Full Name"
+                className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4"
+              />
+              {errors.name && <div className="text-red-500 text-sm mt-1">{errors.name}</div>}
+            </div>
 
-                <div className="mb-4">
-                  <Field
-                    type="text"
-                    name="email"
-                    placeholder="Email address"
-                    className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4 focus:ring-2 focus:ring-purple-400 transition-all duration-200"
-                  />
-                  <div className="text-red-500 text-sm mt-1">
-                    {errors.email && touched.email && errors.email}
-                  </div>
-                </div>
+            <div className="mb-4">
+              <input
+                type="text"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Email address"
+                className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4"
+              />
+              {errors.email && <div className="text-red-500 text-sm mt-1">{errors.email}</div>}
+            </div>
 
-                <div className="mb-4 relative">
-                  <Field
-                    type={view}
-                    name="password"
-                    placeholder="Password"
-                    className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4 focus:ring-2 focus:ring-purple-400 transition-all duration-200"
-                  />
-                  <span
-                    onClick={() => setView(view === "text" ? "password" : "text")}
-                    className="absolute top-3 right-4 cursor-pointer"
-                  >
-                    {view === "text" ? ClosedEye : OpenEye}
-                  </span>
-                  <div className="text-red-500 text-sm mt-1">
-                    {errors.password && touched.password && errors.password}
-                  </div>
-                </div>
+            <div className="mb-4 relative">
+              <input
+                type={view}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Password"
+                className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4"
+              />
+              <span
+                onClick={() => setView(view === "text" ? "password" : "text")}
+                className="absolute top-3 right-4 cursor-pointer"
+              >
+                {view === "text" ? ClosedEye : OpenEye}
+              </span>
+              {errors.password && <div className="text-red-500 text-sm mt-1">{errors.password}</div>}
+            </div>
 
-                <div className="mb-4">
-                  <Field
-                    type="text"
-                    name="phone"
-                    placeholder="Phone Number"
-                    className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4 focus:ring-2 focus:ring-purple-400 transition-all duration-200"
-                  />
-                  <div className="text-red-500 text-sm mt-1">
-                    {errors.phone && touched.phone && errors.phone}
-                  </div>
-                </div>
+            <div className="mb-4">
+              <input
+                type="text"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="Phone Number"
+                className="w-full h-11 rounded-lg bg-[#f2fbfc] border border-gray-300 px-4"
+              />
+              {errors.phone && <div className="text-red-500 text-sm mt-1">{errors.phone}</div>}
+            </div>
 
-                <div className="flex items-center mb-4">
-                  <Field type="checkbox" name="agreeToTerms" id="agreeToTerms" className="mr-2" />
-                  <label htmlFor="agreeToTerms" className="text-sm text-gray-600">
-                    I accept all Terms and Conditions
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-purple-600 text-white h-11 rounded-lg hover:bg-purple-700 transition-all text-lg font-medium"
-                >
-                  Create Account
-                </button>
-              </Form>
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                name="agreeToTerms"
+                checked={formData.agreeToTerms}
+                onChange={handleChange}
+                className="mr-2"
+              />
+              <label htmlFor="agreeToTerms" className="text-sm text-gray-600">
+                I accept all Terms and Conditions
+              </label>
+            </div>
+            {errors.agreeToTerms && (
+              <div className="text-red-500 text-sm mb-2">{errors.agreeToTerms}</div>
             )}
-          </Formik>
+
+            <button
+              type="submit"
+              className="w-full bg-purple-600 text-white h-11 rounded-lg hover:bg-purple-700 transition-all text-lg font-medium"
+            >
+              Create Account
+            </button>
+          </form>
 
           <img className="mx-auto h-5 my-6" src={page_break} alt="or" />
 
@@ -157,7 +190,9 @@ const SignUp = () => {
         <div
           className="hidden xl:flex w-1/2 bg-cover bg-center"
           style={{ backgroundImage: `url(${working_girl})` }}
-        > <img src={images.house_login} alt="" /></div>
+        >
+          <img src={images.house_login} alt="illustration" />
+        </div>
       )}
     </div>
   );

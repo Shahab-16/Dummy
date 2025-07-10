@@ -1,56 +1,88 @@
-const mongoose = require("mongoose");
 const axios = require("axios");
+const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
 
-const PRODUCT_SERVICE_URL = "http://localhost:5003/api/products";
-
-const cartItemSchema = new mongoose.Schema({
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Product"
+const userSchema = new Schema({
+  fullName:{
+    type: String,
+    required: true
   },
-  quantity: {
-    type: Number,
-    default: 1
-  }
-});
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    default: "user",
+    enum: ["user", "admin"],
+  },
+  cart: {
+    items: [
+      {
+        productId: {
+          type: Schema.Types.ObjectId,
+          ref: "Product",
+          required: true,
+        },
+        quantity: { type: Number, required: true },
+      },
+    ],
+  },
+  likedProducts: {
+    type: [Schema.Types.ObjectId],
+    ref: "Product",
+    default: [],
+  },
+  models: {
+    type: [
+      {
+        modelName: { type: String, required: true },
+        imageUrl: { type: String, required: true },
+        modelUrl: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+        status: { type: String, default: "pending" },
+      },
+    ],
+    default: [],
+  },
+}, { timestamps: true });
 
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  password: String,
-  cart: [cartItemSchema]
-});
-
-// ✅ Define method properly here
-userSchema.methods.populateCartDetails = async function () {
-  const user = this;
-
-  if (!user.cart.length) return user;
-
-  try {
-    const productIds = user.cart.map(item => item.productId);
-
-    const response = await axios.get(PRODUCT_SERVICE_URL, {
-      params: { ids: productIds.join(',') }
+// Cart methods
+userSchema.methods.addToCart = function (product) {
+  const cartProductIndex = this.cart.items.findIndex(
+    (cp) => cp.productId.toString() === product._id.toString()
+  );
+  
+  const updatedCartItems = [...this.cart.items];
+  
+  if (cartProductIndex >= 0) {
+    updatedCartItems[cartProductIndex].quantity += 1;
+  } else {
+    updatedCartItems.push({
+      productId: product._id,
+      quantity: 1,
     });
-
-    const products = response.data.reduce((map, product) => {
-      map[product._id] = product;
-      return map;
-    }, {});
-
-    user.cart = user.cart.map(item => ({
-      ...item.toObject(),
-      product: products[item.productId] || null
-    }));
-
-    return user;
-
-  } catch (error) {
-    console.error("Error populating cart:", error.message);
-    return user; // fallback
   }
+  
+  this.cart.items = updatedCartItems;
+  return this.save();
 };
 
-const User = mongoose.model("User", userSchema);
-module.exports = User;
+userSchema.methods.removeFromCart = function (productId) {
+  this.cart.items = this.cart.items.filter(
+    (item) => item.productId.toString() !== productId.toString()
+  );
+  return this.save();
+};
+
+userSchema.methods.clearCart = function () {
+  this.cart = { items: [] };
+  return this.save();
+};
+
+module.exports = mongoose.model("User", userSchema);

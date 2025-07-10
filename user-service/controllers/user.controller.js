@@ -3,7 +3,11 @@ const jwt = require("jsonwebtoken");
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { fullName, email, password } = req.body;
+
+    if (!fullName || !email || !password) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
     
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -12,7 +16,7 @@ exports.register = async (req, res) => {
     }
     
     // Create user
-    const user = new User({ name, email, password });
+    const user = new User({ fullName, email, password });
     await user.save();
     
     // Generate token

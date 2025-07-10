@@ -1,36 +1,50 @@
 const User = require("../models/user.model");
 const axios = require("axios");
 
-const PRODUCT_SERVICE_URL = "http://localhost:5003/api/products";
+const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL;
 
 exports.addToCart = async (req, res) => {
   try {
-    const { productId, quantity = 1,userId} = req.body;
-    console.log(req.body);
-    // Verify product exists in product service
+    const { productId, quantity = 1, userId } = req.body;
+    
+    // 1. Verify product exists AND check available quantity
     const productResponse = await axios.get(`${PRODUCT_SERVICE_URL}/${productId}`);
-    console.log(productResponse.data);
     if (!productResponse.data) {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    const availableQty = productResponse.data.availableQuantity;
+    if (availableQty < quantity) {
+      return res.status(400).json({ 
+        message: `Only ${availableQty} items available` 
+      });
+    }
+
+    // 2. Get user and update cart
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Check if product already in cart
-    const existingItem = user.cart.find(item => item.productId === productId);
-    
+    const existingItem = user.cart.items.find(item => 
+      item.productId.toString() === productId
+    );
+
     if (existingItem) {
-      // Update quantity
-      existingItem.quantity += quantity;
+      // Check total quantity won't exceed available
+      const newTotalQty = existingItem.quantity + quantity;
+      if (availableQty < newTotalQty) {
+        return res.status(400).json({
+          message: `Only ${availableQty} items available (you already have ${existingItem.quantity} in cart)`
+        });
+      }
+      existingItem.quantity = newTotalQty;
     } else {
-      // Add new item
-      user.cart.push({ productId, quantity });
+      user.cart.items.push({ productId, quantity });
     }
 
     await user.save();
     
     res.json({ 
+      success: true,
       message: "Product added to cart", 
       cart: user.cart 
     });
@@ -39,48 +53,59 @@ exports.addToCart = async (req, res) => {
     if (error.response?.status === 404) {
       return res.status(404).json({ message: "Product not found" });
     }
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Add to cart error:", error);
+    res.status(500).json({ message: "Failed to add to cart", error: error.message });
   }
 };
 
 exports.removeFromCart = async (req, res) => {
   try {
     const { productId } = req.params;
-    const userId = req.body.userId;
+    const { userId } = req.body;
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Remove item from cart
-    user.cart = user.cart.filter(item => item.productId !== productId);
+    user.cart.items = user.cart.items.filter(
+      item => item.productId.toString() !== productId
+    );
     
     await user.save();
     
     res.json({ 
-      message: "Product removed from cart", 
-      cart: user.cart 
+      success: true,
+      message: "Product removed from cart" 
     });
     
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Remove from cart error:", error);
+    res.status(500).json({ message: "Failed to remove from cart", error: error.message });
   }
 };
 
 exports.updateCartItem = async (req, res) => {
   try {
     const { productId } = req.params;
-    const { quantity } = req.body;
-    const userId = req.user._id;
+    const { quantity, userId } = req.body;
 
     if (!quantity || quantity < 1) {
-      return res.status(400).json({ message: "Invalid quantity" });
+      return res.status(400).json({ message: "Quantity must be at least 1" });
+    }
+
+    // Verify available quantity
+    const productResponse = await axios.get(`${PRODUCT_SERVICE_URL}/${productId}/inventory`);
+    if (productResponse.data.availableQuantity < quantity) {
+      return res.status(400).json({ 
+        message: `Only ${productResponse.data.availableQuantity} items available` 
+      });
     }
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Find and update item
-    const cartItem = user.cart.find(item => item.productId === productId);
+    const cartItem = user.cart.items.find(
+      item => item.productId.toString() === productId
+    );
     
     if (!cartItem) {
       return res.status(404).json({ message: "Item not in cart" });
@@ -90,64 +115,56 @@ exports.updateCartItem = async (req, res) => {
     await user.save();
     
     res.json({ 
-      message: "Cart updated", 
-      cart: user.cart 
+      success: true,
+      message: "Cart updated"
     });
     
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Update cart error:", error);
+    res.status(500).json({ message: "Failed to update cart", error: error.message });
   }
 };
 
 exports.getCart = async (req, res) => {
   try {
-    const userId = req.body.userId;
-    console.log(userId);
-    const user = await User.findById(userId);
+    const { userId } = req.body;
+    const user = await User.findById(userId).populate({
+      path: 'cart.items.productId',
+      select: 'name price images'
+    });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const populatedUser = await user.populateCartDetails(); // now call method on doc
+    // Verify availability for each product
+    const cartWithAvailability = await Promise.all(
+      user.cart.items.map(async (item) => {
+        try {
+          const response = await axios.get(`${PRODUCT_SERVICE_URL}/${item.productId._id}/inventory`);
+          return {
+            ...item.toObject(),
+            available: response.data.availableQuantity >= item.quantity
+          };
+        } catch {
+          return {
+            ...item.toObject(),
+            available: false
+          };
+        }
+      })
+    );
 
-    res.json({ cart: populatedUser.cart });
+    res.json({ 
+      success: true,
+      cart: {
+        items: cartWithAvailability,
+        totalItems: user.cart.items.reduce((sum, item) => sum + item.quantity, 0)
+      }
+    });
 
   } catch (error) {
-    console.error("Error in getCart:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Get cart error:", error);
+    res.status(500).json({ message: "Failed to get cart", error: error.message });
   }
 };
-
-{/*// Custom method to populate cart with product details
-User.methods.populateCartDetails = async function() {
-  const user = this;
-  
-  if (user.cart.length === 0) return user;
-  
-  try {
-    // Get product IDs from cart
-    const productIds = user.cart.map(item => item.productId);
-    
-    // Fetch products from product service
-    const response = await axios.get(PRODUCT_SERVICE_URL, {
-      params: { ids: productIds.join(',') }
-    });
-    
-    const products = response.data.reduce((map, product) => {
-      map[product._id] = product;
-      return map;
-    }, {});
-    
-    // Merge product details with cart items
-    user.cart = user.cart.map(item => ({
-      ...item.toObject(),
-      product: products[item.productId] || null
-    }));
-    
-    return user;
-  } catch (error) {
-    console.error("Error populating cart:", error);
-    return user; // Return cart without product details
-  }
-};*/}
