@@ -6,7 +6,6 @@ import page_break from "../../assets/images/page_break.png";
 import working_girl from "../../assets/images/working_girl.png";
 import { images } from "../../assets/asset";
 import { motion } from "framer-motion";
-
 const UserLogin = () => {
   const { login, googleSignin } = useContext(UserContext);
   const navigate = useNavigate();
@@ -52,12 +51,20 @@ const UserLogin = () => {
     return Object.keys(tempErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validate()) {
-      login(formData);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (validate()) {
+    const res = await login(formData);
+    console.log(res);
+    if (res?.success) {
+      navigate('/dashboard');
+    } else {
+      // Optional: show error
+      console.log('Login failed:', res?.message);
     }
-  };
+  }
+};
+
 
   return (
     <div className="h-screen w-screen flex">

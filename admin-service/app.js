@@ -11,6 +11,6 @@ app.use(cookieParser());
 
 rabbitmq.connect();
 
-app.use("/api/admin", adminRoutes);
+app.use("/admin", adminRoutes);
 
 module.exports = app;

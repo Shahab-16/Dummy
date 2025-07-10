@@ -7,7 +7,7 @@ import UserContext from "../../context/userContext";
 import { images } from "../../assets/asset";
 
 const AdminLogin = () => {
-  const { login, googleSignin } = useContext(UserContext);
+  const { adminLogin, googleSignin } = useContext(UserContext);
   const [showBackground, setShowBackground] = useState(window.innerWidth > 1140);
   const [view, setView] = useState("password");
 
@@ -54,7 +54,7 @@ const AdminLogin = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
-      login(formData);
+      adminLogin(formData);
     }
   };
 

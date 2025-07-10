@@ -3,17 +3,26 @@ const expressProxy = require('express-http-proxy');
 const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
 
 const app = express();
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'], 
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
   credentials: true
 }));
-app.use(helmet()); // Security headers
-app.use(morgan('combined')); // Request logging
-app.use(express.json()); // For parsing application/json
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(cookieParser());
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false }
+}));
 
 // Service configurations
 const SERVICES = {
@@ -26,60 +35,46 @@ const SERVICES = {
 
 // Proxy options
 const proxyOptions = {
-  timeout: 5000, // 5 seconds timeout
-  proxyReqPathResolver: (req) => {
-    return req.originalUrl; // Forward the complete URL
-  },
+  timeout: 5000,
+  proxyReqPathResolver: (req) => req.originalUrl,
   proxyErrorHandler: (err, res, next) => {
     console.error('Proxy Error:', err);
     switch (err && err.code) {
-      case 'ECONNREFUSED':
-        return res.status(503).json({ error: 'Service unavailable' });
-      case 'ETIMEDOUT':
-        return res.status(504).json({ error: 'Gateway timeout' });
-      default:
-        return res.status(500).json({ error: 'Internal server error' });
+      case 'ECONNREFUSED': return res.status(503).json({ error: 'Service unavailable' });
+      case 'ETIMEDOUT': return res.status(504).json({ error: 'Gateway timeout' });
+      default: return res.status(500).json({ error: 'Internal server error' });
     }
   }
 };
 
-// Proxy middleware for each service
+// Enhanced user service proxy
 app.use('/user', expressProxy(SERVICES.user, {
   ...proxyOptions,
   proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
-    // You can modify headers here if needed
-    if (srcReq.headers['authorization']) {
-      proxyReqOpts.headers['Authorization'] = srcReq.headers['authorization'];
+    proxyReqOpts.headers = { ...srcReq.headers };
+    if (srcReq.cookies?.token) {
+      proxyReqOpts.headers['Authorization'] = `Bearer ${srcReq.cookies.token}`;
     }
     return proxyReqOpts;
   }
 }));
 
-app.use('/admin', expressProxy(SERVICES.admin, {
-  ...proxyOptions,
-  proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
-    if (srcReq.headers['authorization']) {
-      proxyReqOpts.headers['Authorization'] = srcReq.headers['authorization'];
-    }
-    return proxyReqOpts;
-  }
-}));
-
+// Other services
+app.use('/admin', expressProxy(SERVICES.admin, proxyOptions));
 app.use('/products', expressProxy(SERVICES.products, proxyOptions));
 app.use('/order', expressProxy(SERVICES.order, proxyOptions));
 app.use('/payment', expressProxy(SERVICES.payment, proxyOptions));
 
-// Health check endpoint
+// Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'API Gateway is healthy' });
 });
 
-// 404 handler
+// Error handlers
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });

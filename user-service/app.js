@@ -20,7 +20,7 @@ app.use(cors({
 
 connect().then(() => initEventListeners());
 
-app.use("/api/user", userRoutes);
+app.use("/user", userRoutes);
 
 app.get("/", (req, res) => res.send("User Service"));
 module.exports = app;

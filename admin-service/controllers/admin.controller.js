@@ -1,10 +1,9 @@
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 const {
   publishProductCreated,
   publishProductDeleted,
 } = require("../events/publisher");
-
 
 const admins = [
   { email: "shahab@gmail.com", password: "12345678", name: "Shahab" },
@@ -16,20 +15,45 @@ const admins = [
 const PRODUCT_SERVICE_URL = "http://localhost:5003/api/products";
 
 exports.login = (req, res) => {
-  const { email, password } = req.body;
-  const admin = admins.find(a => a.email === email && a.password === password);
-  
-  if (!admin) return res.status(401).json({ message: "Invalid email or password" });
+  try {
+    const { email, password } = req.body;
+    const admin = admins.find(
+      (a) => a.email === email && a.password === password
+    );
+    console.log("Printing the admin data ", email, password);
+    
+    if (!admin) {
+      return res.status(401).json({ success: false, message: "Invalid email or password" });
+    }
 
-  const token = jwt.sign({ email: admin.email, name: admin.name }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
+    const token = jwt.sign(
+      { email: admin.email, name: admin.name },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
 
-  res.cookie("adminToken", token, { httpOnly: true }).json({
-    message: "Login successful",
-    admin: { email: admin.email, name: admin.name, token },
-  });
+    // ✅ Set cookie and send unified JSON response
+    res
+      .cookie("adminToken", token, { httpOnly: true })
+      .status(200)
+      .json({
+        success: true,
+        message: "Admin Login successful",
+        admin: { email: admin.email, name: admin.name, token },
+      });
+
+    console.log("Admin logged in successfully");
+
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error while admin login"
+    });
+  }
 };
+
 
 exports.getAdminInfo = (req, res) => {
   const token = req.cookies.adminToken;
@@ -51,21 +75,21 @@ exports.logout = (req, res) => {
 exports.addProduct = async (req, res) => {
   try {
     const token = req.cookies.adminToken;
-    console.log('token', token);
+    console.log("token", token);
     const response = await axios.post(PRODUCT_SERVICE_URL, req.body, {
       headers: {
-        Authorization: `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
 
-    console.log('products are', response.data);
+    console.log("products are", response.data);
 
     await publishProductCreated(response.data);
 
     res.status(response.status).json(response.data);
   } catch (error) {
     const status = error.response?.status || 500;
-    const data = error.response?.data || { message: 'Product service error' };
+    const data = error.response?.data || { message: "Product service error" };
     res.status(status).json(data);
   }
 };
@@ -77,17 +101,17 @@ exports.removeProduct = async (req, res) => {
     const { id } = req.params;
     const response = await axios.delete(`${PRODUCT_SERVICE_URL}/${id}`, {
       headers: {
-        Authorization: `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
 
     // ✅ Publish delete event to RabbitMQ
     await publishProductDeleted(id);
-    
+
     res.status(response.status).json(response.data);
   } catch (error) {
     const status = error.response?.status || 500;
-    const data = error.response?.data || { message: 'Product service error' };
+    const data = error.response?.data || { message: "Product service error" };
     res.status(status).json(data);
   }
 };
@@ -99,7 +123,7 @@ exports.listAllProducts = async (req, res) => {
     res.status(response.status).json(response.data);
   } catch (error) {
     const status = error.response?.status || 500;
-    const data = error.response?.data || { message: 'Product service error' };
+    const data = error.response?.data || { message: "Product service error" };
     res.status(status).json(data);
   }
 };
