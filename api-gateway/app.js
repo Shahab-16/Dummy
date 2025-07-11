@@ -15,7 +15,7 @@ app.use(cors({
 }));
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(express.json());
+app.use(express.json()); // Only used for JSON-based routes
 app.use(cookieParser());
 app.use(session({
   secret: 'your-secret-key',
@@ -33,16 +33,19 @@ const SERVICES = {
   payment: 'http://localhost:5005'
 };
 
-// Proxy options
+// Base proxy options
 const proxyOptions = {
   timeout: 5000,
   proxyReqPathResolver: (req) => req.originalUrl,
   proxyErrorHandler: (err, res, next) => {
     console.error('Proxy Error:', err);
     switch (err && err.code) {
-      case 'ECONNREFUSED': return res.status(503).json({ error: 'Service unavailable' });
-      case 'ETIMEDOUT': return res.status(504).json({ error: 'Gateway timeout' });
-      default: return res.status(500).json({ error: 'Internal server error' });
+      case 'ECONNREFUSED':
+        return res.status(503).json({ error: 'Service unavailable' });
+      case 'ETIMEDOUT':
+        return res.status(504).json({ error: 'Gateway timeout' });
+      default:
+        return res.status(500).json({ error: 'Internal server error' });
     }
   }
 };
@@ -59,22 +62,34 @@ app.use('/user', expressProxy(SERVICES.user, {
   }
 }));
 
-// Other services
+console.log("Inside API Gateway");
+
+// Admin, Order, and Payment services (standard proxy)
 app.use('/admin', expressProxy(SERVICES.admin, proxyOptions));
-app.use('/products', expressProxy(SERVICES.products, proxyOptions));
 app.use('/order', expressProxy(SERVICES.order, proxyOptions));
 app.use('/payment', expressProxy(SERVICES.payment, proxyOptions));
 
-// Health check
+// ✅ Products service (multipart/form-data compatible)
+app.use('/products', expressProxy(SERVICES.products, {
+  ...proxyOptions,
+  proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+    proxyReqOpts.headers = { ...srcReq.headers };
+    delete proxyReqOpts.headers['content-length']; // let proxy handle form boundary
+    return proxyReqOpts;
+  },
+  parseReqBody: false // ✅ CRUCIAL: let proxy stream FormData without parsing
+}));
+// Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'API Gateway is healthy' });
 });
 
-// Error handlers
+// Catch-all for undefined routes
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });

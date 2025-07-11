@@ -8,13 +8,14 @@ const categoryRoutes = require("./routes/category.routes");
 const productRoutes = require("./routes/product.routes");
 
 connectDB();
-
-app.use(express.json());
-app.use(cookieParser());
-
 rabbitmq.connect();
 
-app.use("/api/categories", categoryRoutes);
-app.use("/api/products", productRoutes);
+app.use(cookieParser());
+
+// ✅ Don't use express.json() globally — only for non-file routes
+app.use("/categories", express.json(), categoryRoutes);
+
+// ✅ This will receive multipart/form-data; multer will handle it
+app.use("/products", productRoutes);
 
 module.exports = app;

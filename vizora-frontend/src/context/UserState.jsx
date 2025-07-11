@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import UserContext from './userContext';
 import { useNavigate } from 'react-router-dom';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../util/firebase-config';
@@ -9,6 +9,7 @@ function UserState(props) {
   const [user, setUser] = useState(null);
   const [likedProducts, setLikedProducts] = useState([]);
   const [userModels, setUserModels] = useState([]);
+  const [token, setToken] = useState(null);
 
   const getUserData = async () => {
     try {
@@ -22,6 +23,7 @@ function UserState(props) {
       const data = await response.json();
       if (data.success) {
         setUser(data.user);
+        setToken(data.token);
         setLikedProducts(data.user?.likedProducts || []);
         setUserModels(data.user?.models || []);
       } else {
@@ -154,6 +156,10 @@ function UserState(props) {
       props.showAlert("Failed to logout", "danger");
     }
   };
+
+  useEffect(() => {
+    getUserData();
+  }, []);
 
   return (
     <UserContext.Provider

@@ -5,8 +5,10 @@ const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL;
 
 exports.addToCart = async (req, res) => {
   try {
-    const { productId, quantity = 1, userId } = req.body;
-    
+    console.log("Inside addtocart in user service and the data are", req.body);
+
+    const { productId, userId, quantity } = req.body;
+
     // 1. Verify product exists AND check available quantity
     const productResponse = await axios.get(`${PRODUCT_SERVICE_URL}/${productId}`);
     if (!productResponse.data) {
@@ -15,8 +17,8 @@ exports.addToCart = async (req, res) => {
 
     const availableQty = productResponse.data.availableQuantity;
     if (availableQty < quantity) {
-      return res.status(400).json({ 
-        message: `Only ${availableQty} items available` 
+      return res.status(400).json({
+        message: `Only ${availableQty} items available`
       });
     }
 
@@ -24,12 +26,11 @@ exports.addToCart = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const existingItem = user.cart.items.find(item => 
+    const existingItem = user.cart.items.find(item =>
       item.productId.toString() === productId
     );
 
     if (existingItem) {
-      // Check total quantity won't exceed available
       const newTotalQty = existingItem.quantity + quantity;
       if (availableQty < newTotalQty) {
         return res.status(400).json({
@@ -38,17 +39,17 @@ exports.addToCart = async (req, res) => {
       }
       existingItem.quantity = newTotalQty;
     } else {
-      user.cart.items.push({ productId, quantity });
+      user.cart.items.push({ productId, quantity }); // ✅ now quantity is defined
     }
 
     await user.save();
-    
-    res.json({ 
+
+    res.json({
       success: true,
-      message: "Product added to cart", 
-      cart: user.cart 
+      message: "Product added to cart",
+      cart: user.cart
     });
-    
+
   } catch (error) {
     if (error.response?.status === 404) {
       return res.status(404).json({ message: "Product not found" });
@@ -58,10 +59,13 @@ exports.addToCart = async (req, res) => {
   }
 };
 
+
 exports.removeFromCart = async (req, res) => {
   try {
     const { productId } = req.params;
     const { userId } = req.body;
+
+    console.log("i m inside remove from cart and the data are", req.body);
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -127,7 +131,8 @@ exports.updateCartItem = async (req, res) => {
 
 exports.getCart = async (req, res) => {
   try {
-    const { userId } = req.body;
+    console.log("Inside getcart in user service and the data are", req.params.userId);
+    const { userId } = req.params;
     const user = await User.findById(userId).populate({
       path: 'cart.items.productId',
       select: 'name price images'
@@ -141,7 +146,7 @@ exports.getCart = async (req, res) => {
     const cartWithAvailability = await Promise.all(
       user.cart.items.map(async (item) => {
         try {
-          const response = await axios.get(`${PRODUCT_SERVICE_URL}/${item.productId._id}/inventory`);
+          const response = await axios.get(`${PRODUCT_SERVICE_URL}/${item.productId._id}`);
           return {
             ...item.toObject(),
             available: response.data.availableQuantity >= item.quantity

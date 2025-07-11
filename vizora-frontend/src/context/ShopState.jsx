@@ -6,6 +6,7 @@ import userContext from "./userContext";
 
 function ShopState(props) {
   const host = import.meta.env.VITE_HOST;
+  const PRODUCT_SERVICE_URL = import.meta.env.VITE_PRODUCT_SERVICE_URL;
   const { showAlert } = props;
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
@@ -15,10 +16,24 @@ function ShopState(props) {
   const [productModels, setProductModels] = useState([]);
   const { user } = useContext(userContext);
 
-  // get cart
+
+  const getProducts = async () => {
+    try {
+      const res = await fetch(`${host}/products`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json();
+      setProducts(data);
+    } catch (error) {
+      console.error("❌ Error fetching products:", error.message);
+    }
+  };
   const getCart = async () => {
     try {
-      const response = await fetch(`${host}/cart`, {
+      const response = await fetch(`${host}/user/carts/${user._id}`, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -39,110 +54,97 @@ function ShopState(props) {
   };
 
   // add to cart
-  const addToCart = async (productId) => {
-    try {
-      const response = await fetch(`${host}/cart`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          productId,
-        }),
-      });
+const addToCart = async (productId) => {
+  console.log("Inside addtocart in shopstate");
+  if (!user) {
+    showAlert("Please login to add to cart", "danger");
+    return;
+  }
+  try {
+    // Update frontend count
+    setProducts((prevProducts) =>
+      prevProducts.map((prod) =>
+        prod._id === productId
+          ? {
+              ...prod,
+              inCart: true,
+              count: prod.count ? prod.count + 1 : 1,
+            }
+          : prod
+      )
+    );
 
-      const data = await response.json();
-      if (data.success) {
-        setCart(data.data);
+    // Backend API call to user-service
+    const res = await fetch(`${host}/user/carts`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ productId, userId: user._id, quantity: 1 }),
+    });
 
-        showAlert("Item Added to cart", "success");
-      } else {
-        showAlert("Failed to add to cart", "danger");
-      }
-    } catch (error) {
+    console.log(res);
+
+    const data = await res.json();
+
+    if (!data.success) {
       showAlert("Failed to add to cart", "danger");
-      console.log("Error Occured in addToCart", error);
+    } else {
+      showAlert("Item added to cart", "success");
     }
-  };
+  } catch (error) {
+    console.error("Add to cart error:", error);
+    showAlert("Error while adding to cart", "danger");
+  }
+};
+
 
   // remove from cart
-  const removeFromCart = async (productId) => {
-    try {
-      const response = await fetch(`${host}/cart`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          productId,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCart(data.data);
-        showAlert("Item Removed from cart", "info");
-      } else {
-        showAlert("No cart found", "danger");
-      }
-    } catch (error) {
-      showAlert("Some Error occured while removing", "danger");
-      console.log("Error occured in removeFromCart", error);
-    }
-  };
+const removeFromCart = async (productId) => {
+  if (!user) {
+    showAlert("Please login to remove from cart", "danger");
+    return;
+  }
 
-  //remove one from cart
-  const removeOneFromCart = async (productId) => {
-    try {
-      const response = await fetch(`${host}/removeonefromcart`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          productId,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCart(data.data);
+  try {
+    setProducts((prevProducts) =>
+      prevProducts.map((prod) => {
+        if (prod._id === productId) {
+          const newCount = (prod.count || 1) - 1;
+          return {
+            ...prod,
+            count: newCount > 0 ? newCount : 0,
+            inCart: newCount > 0,
+          };
+        }
+        return prod;
+      })
+    );
 
-        showAlert("Item Removed from cart", "info");
-      } else {
-        showAlert("No cart found", "danger");
-      }
-    } catch (error) {
-      showAlert("Some Error occured while removing", "danger");
-      console.log("Error occured in removeFromCart", error);
-    }
-  };
+    // Backend API call to user-service
+    const res = await fetch(`${host}/user/carts/${productId}`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ productId, userId: user._id }),
+    });
 
-  // get products
-  const getProducts = async (subcategoryId) => {
-    try {
-      const response = await fetch(`${host}/products`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          subcategoryId,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setProducts(data.products);
-        showAlert("Products loaded successfully", "success");
-      } else {
-        showAlert("Failed to load Products", "danger");
-      }
-    } catch (error) {
-      showAlert("Some Error occured while fetching Products", "danger");
-      console.log("Error occured in getProducts", error);
+    const data = await res.json();
+
+    if (!data.success) {
+      showAlert("Failed to remove from cart", "danger");
+    } else {
+      showAlert("Item removed from cart", "success");
     }
-  };
+  } catch (error) {
+    console.error("Remove from cart error:", error);
+    showAlert("Error while removing from cart", "danger");
+  }
+};
+
 
   // get Paints
   const getPaints = async () => {
@@ -400,7 +402,6 @@ function ShopState(props) {
         getCart,
         addToCart,
         removeFromCart,
-        removeOneFromCart,
         getProducts,
         products,
         setProducts,

@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState, useContext } from "react";
+import React, { useEffect, useContext } from "react";
 import ShopContext from "../context/shopContext";
 import { Cloudinary } from "@cloudinary/url-gen";
-import { plus } from "../assets/icons";
 import { AdvancedImage } from "@cloudinary/react";
 import userContext from "../context/userContext";
 
@@ -12,13 +11,11 @@ const cld = new Cloudinary({
 });
 
 const Cart = ({ setShowCart, showCart, setActive }) => {
-  const { getCart, cart, removeFromCart, removeOneFromCart, addToCart } =
-    useContext(ShopContext);
-
+  const { getCart, cart, removeFromCart } = useContext(ShopContext);
   const { user } = useContext(userContext);
 
   useEffect(() => {
-    if (user ) {
+    if (user) {
       getCart();
     }
   }, [user]);
@@ -26,76 +23,44 @@ const Cart = ({ setShowCart, showCart, setActive }) => {
   return (
     <>
       {showCart && (
-        <div className="fixed top-0 right-0 bg-white p-4 w-[500px] border-2 h-full overflow-y-auto">
-          <div className="flex justify-between">
+        <div className="fixed top-0 right-0 bg-white p-4 w-[500px] border-2 h-full overflow-y-auto z-50 shadow-lg">
+          <div className="flex justify-between items-center mb-4">
             <div></div>
-            <h1 className="text-center content-center text-xl font-semibold">
-              Cart
-            </h1>
-            <button onClick={() => setShowCart(false)} className="text-2xl">
-              x
-            </button>
+            <h1 className="text-xl font-semibold">Cart</h1>
+            <button onClick={() => setShowCart(false)} className="text-2xl">×</button>
           </div>
           <hr />
-          <div className="flex flex-col">
-            <div className="flex flex-col justify-between mt-4 space-y-10">
-              {cart?.length > 0 ? (
-                cart.map((item) => {
-                  if (item.product)
-                    return (
-                      <div key={item.product._id} className="flex ">
-                        <div className="flex ml-3 relative">
-                          <AdvancedImage
-                            className="mx-auto"
-                            cldImg={cld
-                              .image(`${item.product.imageUrl}`)
-                              .addTransformation(
-                                "q_auto,c_auto,g_auto,h_150,w_200,r_10"
-                              )}
-                          />
-                          <span className="flex text-gray-500 text-sm absolute bg-white rounded-md border-2 left-16  -bottom-3 h-fit">
-                            <button
-                              onClick={() => addToCart(item.product._id)}
-                              className="px-2"
-                            >
-                              +
-                            </button>
-                            <span className="px-2 border-l-2 border-r-2 text-black font-medium">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() =>
-                                removeOneFromCart(item.product._id)
-                              }
-                              className="px-2"
-                            >
-                              -
-                            </button>
-                          </span>
-                        </div>
-                        <div className="ml-4 relative text-left">
-                          <h1 className="text-xl h-fit font-medium">
-                            {item.product.productName}
-                          </h1>
-                          <p className="h-fit">
-                            {item.product.price} {item.product.unit}
-                          </p>
-                          <button
-                            onClick={() => {
-                              removeFromCart(item.product._id);
-                            }}
-                            className="text-xs text-red-500 absolute bottom-0"
-                          >
-                            Remove Item
-                          </button>
-                        </div>
-                      </div>
-                    );
-                })
-              ) : (
-                <h1>No items in cart</h1>
-              )}
-            </div>
+          <div className="flex flex-col mt-4 space-y-8">
+            {cart?.length > 0 ? (
+              cart.map((item) => {
+                if (!item.product) return null;
+                return (
+                  <div key={item.product._id} className="flex items-start space-x-4">
+                    <AdvancedImage
+                      className="rounded-md"
+                      cldImg={cld
+                        .image(item.product.imageUrl)
+                        .addTransformation("q_auto,c_auto,g_auto,h_150,w_200,r_10")}
+                    />
+                    <div className="flex flex-col text-left w-full relative">
+                      <h2 className="text-lg font-medium">{item.product.productName}</h2>
+                      <p className="text-sm text-gray-600 mb-2">
+                        {item.product.price} {item.product.unit}
+                      </p>
+                      <p className="text-sm font-medium">Qty: {item.quantity}</p>
+                      <button
+                        onClick={() => removeFromCart(item.product._id)}
+                        className="text-sm text-red-500 mt-2 absolute bottom-0"
+                      >
+                        Remove Item
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-gray-600 text-center">No items in cart</p>
+            )}
           </div>
           {cart.length > 0 && (
             <button
@@ -103,7 +68,7 @@ const Cart = ({ setShowCart, showCart, setActive }) => {
                 setActive("orders");
                 setShowCart(false);
               }}
-              className="bg-primary-purple rounded-sm text-white font-medium px-8 py-0.5 flex mx-auto mb-10 mt-20"
+              className="bg-primary-purple text-white font-medium rounded-md px-8 py-2 mt-10 mx-auto block"
             >
               Proceed
             </button>

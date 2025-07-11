@@ -1,8 +1,6 @@
 import "./App.css";
 import React,{useState} from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import AdminLogin from "./pages/AdminLogin";
-import AdminSignup from "./pages/AdminSignup";
 import AdminHome from "./pages/AdminHome";
 import EditorPage from "./pages/EditorPage";
 import AdminState from "./contexts/AdminState";
@@ -43,10 +41,7 @@ function App() {
       <div className="w-[80%]">
         <Routes>
           <Route path="/" element={<AdminHome />} />
-          <Route path="admin/dashboard" element={<Dashboard/>} />
-          <Route path="login" element={<AdminLogin />} />
-          <Route path="signup" element={<AdminSignup />} />
-          <Route path="editor" element={<EditorPage />} />
+          <Route path="/admin/editor" element={<EditorPage />} />
           <Route path="/admin/add-product" element={<AddProduct/>}/>
           <Route path="/admin/list-product" element={<ListProduct/>}/>
           <Route path="/admin/product-info" element={<ProductInfo/>}/>

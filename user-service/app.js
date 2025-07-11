@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const userRoutes = require("./routes/user.routes");
+const cartRoutes=require("./routes/cart.routes");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./db/connect");
 const { connect } = require('./services/rabbitmq');
@@ -21,6 +22,7 @@ app.use(cors({
 connect().then(() => initEventListeners());
 
 app.use("/user", userRoutes);
+app.use("/user/carts",cartRoutes)
 
 app.get("/", (req, res) => res.send("User Service"));
 module.exports = app;

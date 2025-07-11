@@ -67,14 +67,13 @@ exports.login = async (req, res) => {
 
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: '7d'
+      expiresIn: '1d'
     });
 
-    console.log("Woking fine in level2");
 
     res.cookie('token', token, {
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 1 * 24 * 60 * 60 * 1000
     });
 
     console.log("User logged in:", user);
@@ -84,7 +83,8 @@ exports.login = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        token:token
       }
     });
   } catch (error) {
@@ -139,9 +139,9 @@ exports.googleAuth = async (req, res) => {
 
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    const user = await User.findById(req.user._id).select('-password');
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'User not found in get profile' });
     }
     res.json({ success: true, user });
   } catch (error) {

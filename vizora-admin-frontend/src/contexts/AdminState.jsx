@@ -1,475 +1,395 @@
-import React from "react";
+import React, { useState } from "react";
 import AdminContext from "./adminContext";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { extractPublicId } from "cloudinary-build-url";
 
 const AdminState = (props) => {
   const host = import.meta.env.VITE_HOST;
   const navigate = useNavigate();
+  const { showAlert } = props;
+
   const [user, setUser] = useState(null);
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [models, setModels] = useState([]);
-  const { showAlert } = props;
   const [productModels, setProductModels] = useState([]);
 
-  // getAdminData
+const postProduct = async (formData) => {
+  try {
+    const response = await fetch(host + "/products", {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    console.log("📡 HTTP status:", response.status); // helpful line
+
+    const text = await response.text();
+    console.log("📨 Raw response text:", text);
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error("❌ JSON parse failed:", e);
+      showAlert("❌ Invalid response from server", "danger");
+      return null;
+    }
+
+    console.log("✅ Parsed response JSON:", data);
+
+    // ⚠️ Check HTTP status + success field both
+    if (!response.ok || !data.success) {
+      console.error("❌ Backend returned error:", data);
+      showAlert(data.message || "❌ Failed to add product", "danger");
+      return null;
+    }
+
+    const product = data.product;
+    setProducts(prev => [...prev, product]);
+    showAlert("✅ Product added successfully", "success");
+    return product;
+
+  } catch (error) {
+    console.error("❌ Network or fetch error:", error);
+    showAlert("❌ Error adding product", "danger");
+    return null;
+  }
+};
+
+
+
+
+const createProduct = async (productData) => {
+  console.log("🚀 Inside createProduct - productData:",productData);
+
+  return await postProduct(productData); // ⬅️ PASSING formData object
+};
+
+
+
+const getProducts = async () => {
+    try {
+      const res = await fetch(`${host}/products`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // if using JWT
+        },
+      });
+
+      const data = await res.json();
+      setProducts(data); // store in context
+    } catch (err) {
+      console.error("Failed to fetch products:", err.message);
+    }
+  };
+
+
+
+
+// AppState.jsx
+
+const deleteProduct = async (productId) => {
+  try {
+    const res = await fetch(`${host}/products/${productId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    const result = await res.json();
+
+    if (res.ok) {
+      console.log("✅ Product deleted:", result);
+      getProducts(); // Refresh product list
+    } else {
+      console.error("❌ Delete failed:", result.message);
+      alert("Failed to delete product: " + result.message);
+    }
+  } catch (err) {
+    console.error("❌ Error deleting product:", err.message);
+  }
+};
+
+
+
+
   const fetchData = async () => {
     const response = await fetch(host + "/login", {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
+
     const data = await response.json();
     if (data.success) {
-      console.log("fetchdata => ", data);
-      showAlert("Logged in succesfully", "success");
+      showAlert("Logged in successfully", "success");
       setUser(data.user);
-    } else if (!data.success) {
-      navigate("/login");
-      showAlert("You are not logged In", "info");
-    }
-  };
-
-  // Login
-  const Login = async (values) => {
-    const response = await fetch(host + "/login", {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(values),
-    });
-
-    const data = await response.json();
-    console.log("data post login=> ", data);
-    if (data.success) {
-      await fetchData();
-      navigate("/");
-    } else if (!data.success) {
-      showAlert("Login Failed", "danger");
-    }
-  };
-
-  // Signup
-  const Signin = async (values) => {
-    const response = await fetch(host + "/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(values),
-    });
-
-    const data = await response.json();
-    console.log("data post Signup=> ", data);
-    if (data.success) {
-      await fetchData();
-      navigate("/");
     } else {
-      showAlert("Signin Failed", "danger");
+      navigate("/login");
+      showAlert("You are not logged in", "info");
     }
   };
 
-  // Logout
   const Logout = async () => {
     const response = await fetch(host + "/logout", {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
       navigate("/login");
       setUser(null);
-      showAlert("Logged out succesfully", "info");
+      showAlert("Logged out successfully", "info");
     } else {
-      showAlert("Faied to logout", "danger");
+      showAlert("Failed to logout", "danger");
     }
   };
 
-  // getCategories
   const getCategories = async () => {
     const response = await fetch(host + "/category", {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
       setCategories(data.categories);
     } else {
-      showAlert("Failed to Fetched Categories", "danger");
+      showAlert("Failed to fetch categories", "danger");
     }
   };
 
-  //get design category
   const getDesignCategories = async () => {
     const response = await fetch(host + "/designcategory", {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
       setCategories(data.categories);
     } else {
-      showAlert("Failed to Fetched Design Categories", "danger");
+      showAlert("Failed to fetch design categories", "danger");
     }
   };
 
-  // postCategory
   const postCategory = async (values) => {
-    console.log("AdminState", JSON.stringify(values));
     const response = await fetch(host + "/category", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
     const data = await response.json();
     if (data.success) {
-      const category = data.category;
-      setCategories([...categories, category]);
+      setCategories([...categories, data.category]);
       showAlert("Category added", "success");
     } else {
       showAlert("Category not added", "danger");
     }
   };
 
-  // patchCategory(categoryId)
   const patchCategory = async (categoryId, values) => {
     const response = await fetch(`${host}/category/${categoryId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
-
     const data = await response.json();
-    console.log("data patch category=> ", data);
     if (data.success) {
-      const newCategories = categories.map((category) => {
-        if (category._id === categoryId) {
-          return data.category;
-        }
-        return category;
-      });
-      setCategories(newCategories);
-      showAlert("Category added", "success");
+      setCategories(categories.map(cat => cat._id === categoryId ? data.category : cat));
+      showAlert("Category updated", "success");
     } else {
-      showAlert("Category not added", "danger");
+      showAlert("Failed to update category", "danger");
     }
   };
 
-  // delCategory(categoryId)
   const delCategory = async (categoryId) => {
     const response = await fetch(`${host}/category/${categoryId}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
-      const newCategories = categories.filter(
-        (category) => category._id !== categoryId
-      );
-      setCategories(newCategories);
+      setCategories(categories.filter(cat => cat._id !== categoryId));
       showAlert("Category deleted", "success");
     } else {
-      showAlert("Category not deleted", "danger");
+      showAlert("Failed to delete category", "danger");
     }
   };
 
-  // getSubCategories
   const getSubCategories = async (categoryId) => {
     const response = await fetch(host + "/getsubcategory", {
       method: "POST",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ categoryId }),
     });
     const data = await response.json();
     if (data.success) {
       setSubCategories(data.subCategories);
-      showAlert("Fetched Sub Categories", "success");
+      showAlert("Subcategories fetched", "success");
     } else {
-      showAlert("Failed to Fetched Sub Categories", "danger");
+      showAlert("Failed to fetch subcategories", "danger");
     }
   };
 
-  // postSubCategory
   const postSubCategory = async (values) => {
     const response = await fetch(host + "/subcategory", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
-
     const data = await response.json();
     if (data.success) {
-      const subCategory = data.subCategory;
-      setSubCategories([...subCategories, subCategory]);
-      showAlert("SubCategory added", "success");
+      setSubCategories([...subCategories, data.subCategory]);
+      showAlert("Subcategory added", "success");
     } else {
-      showAlert("SubCategory not added", "danger");
+      showAlert("Subcategory not added", "danger");
     }
   };
 
-  // patchSubCategory(SubCategoryId)
   const patchSubCategory = async (subCategoryId, values) => {
     const response = await fetch(`${host}/subcategory/${subCategoryId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
-
     const data = await response.json();
     if (data.success) {
-      const newSubCategories = subCategories.map((subCategory) => {
-        if (subCategory._id === subCategoryId) {
-          return data.subCategory;
-        }
-        return subCategory;
-      });
-      setSubCategories(newSubCategories);
-      showAlert("SubCategory added", "success");
+      setSubCategories(subCategories.map(sc => sc._id === subCategoryId ? data.subCategory : sc));
+      showAlert("Subcategory updated", "success");
     } else {
-      showAlert("SubCategory not added", "danger");
+      showAlert("Failed to update subcategory", "danger");
     }
   };
 
-  // delSubCategory(SubCategoryId)
   const delSubCategory = async (subCategoryId) => {
     const response = await fetch(`${host}/subcategory/${subCategoryId}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
-      const newSubCategories = subCategories.filter(
-        (subCategory) => subCategory._id !== subCategoryId
-      );
-      setSubCategories(newSubCategories);
-      showAlert("SubCategory deleted", "success");
+      setSubCategories(subCategories.filter(sc => sc._id !== subCategoryId));
+      showAlert("Subcategory deleted", "success");
     } else {
-      showAlert("SubCategory not deleted", "danger");
+      showAlert("Failed to delete subcategory", "danger");
     }
   };
 
-  // getProducts
-  const getProducts = async (subCategoryId) => {
-    const response = await fetch(host + "/getproduct", {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ subCategoryId }),
-    });
-    const data = await response.json();
-    if (data.success) {
-      setProducts(data.product);
-      showAlert("Products fetched", "success");
-    } else {
-      showAlert("Failed to fetch Products", "danger");
-    }
-  };
 
-  // postProduct
-  const postProduct = async (values) => {
-    const response = await fetch(host + "/product", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(values),
-    });
-
-    const data = await response.json();
-    if (data.success) {
-      const product = data.product;
-      setProducts([...products, product]);
-      showAlert("Product added", "success");
-    } else {
-      showAlert("Product not added", "danger");
-    }
-  };
-
-  // patchProduct(productId)
   const patchProduct = async (productId, values) => {
     const response = await fetch(`${host}/product/${productId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
-
     const data = await response.json();
     if (data.success) {
-      const newProducts = products.map((product) => {
-        if (product._id === productId) {
-          return data.product;
-        }
-        return product;
-      });
-      setProducts(newProducts);
-      showAlert("Product added", "success");
+      setProducts(products.map(p => p._id === productId ? data.product : p));
+      showAlert("Product updated", "success");
     } else {
-      showAlert("Product not added", "danger");
+      showAlert("Failed to update product", "danger");
     }
   };
 
-  // delProduct(productId)
   const delProduct = async (productId) => {
     const response = await fetch(`${host}/product/${productId}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
-      const newProducts = products.filter(
-        (product) => product._id !== productId
-      );
-      setProducts(newProducts);
+      setProducts(products.filter(p => p._id !== productId));
       showAlert("Product deleted", "success");
     } else {
-      showAlert("Product not deleted", "danger");
+      showAlert("Failed to delete product", "danger");
     }
   };
 
-  // postModel
   const postModel = async (values) => {
     const response = await fetch(host + "/model", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
       credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
-
     const data = await response.json();
     if (data.success) {
-      const model = data.model;
-      setModels([...models, model]);
+      setModels([...models, data.model]);
       showAlert("Model added", "success");
     } else {
-      showAlert("Model not added", "danger");
+      showAlert("Failed to add model", "danger");
     }
   };
 
-  // getProductModels
-  const getProductModels = async (categoryId) => {
-    const response = await fetch(`${host}/productmodels`, {
+  const getProductModels = async () => {
+    const response = await fetch(host + "/productmodels", {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
       setProductModels(data.data);
-      showAlert("Product Models fetched", "success");
+      showAlert("Product models fetched", "success");
     } else {
-      showAlert("Failed to fetch Product Models", "danger");
+      showAlert("Failed to fetch product models", "danger");
     }
   };
 
-  // getModels
   const getModels = async (categoryId) => {
     const response = await fetch(`${host}/models/${categoryId}`, {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
       setModels(data.models);
       showAlert("Models fetched", "success");
     } else {
-      showAlert("Failed to fetch Models", "danger");
+      showAlert("Failed to fetch models", "danger");
     }
   };
 
-  // patchModel
   const patchModel = async (modelId, values) => {
     const response = await fetch(`${host}/model/${modelId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
-
     const data = await response.json();
     if (data.success) {
-      const newModels = models.map((model) => {
-        if (model._id === modelId) {
-          return data.model;
-        }
-        return model;
-      });
-      setModels(newModels);
-      showAlert("Model added", "success");
+      setModels(models.map(m => m._id === modelId ? data.model : m));
+      showAlert("Model updated", "success");
     } else {
-      showAlert("Model not added", "danger");
+      showAlert("Failed to update model", "danger");
     }
   };
 
-  // delModel
   const delModel = async (modelId) => {
     const response = await fetch(`${host}/model/${modelId}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await response.json();
     if (data.success) {
-      const newModels = models.filter((model) => model._id !== modelId);
-      setModels(newModels);
+      setModels(models.filter(m => m._id !== modelId));
       showAlert("Model deleted", "success");
     } else {
-      showAlert("Model not deleted", "danger");
+      showAlert("Failed to delete model", "danger");
     }
   };
 
-  // savemodel
   const saveModel = async (model, url, modelId) => {
-    console.log("model = ", model);
     const publicId = extractPublicId(url);
-    console.log(" publicId = ", publicId);
-
     const modelBlob = new Blob([model], { type: "application/octet-stream" });
 
     const formData = new FormData();
@@ -485,13 +405,6 @@ const AdminState = (props) => {
 
     const data = await response.json();
     console.log(data);
-    // if (data.success) {
-    //   const model = data.model;
-    //   setModels([...models, model]);
-    //   showAlert("Model added", "success");
-    // } else {
-    //   showAlert("Model not added", "danger");
-    // }
   };
 
   return (
@@ -503,8 +416,6 @@ const AdminState = (props) => {
         subCategories,
         products,
         productModels,
-        Login,
-        Signin,
         Logout,
         getCategories,
         getDesignCategories,
@@ -516,7 +427,9 @@ const AdminState = (props) => {
         patchSubCategory,
         delSubCategory,
         getProducts,
+        createProduct,
         postProduct,
+        deleteProduct,
         patchProduct,
         delProduct,
         getProductModels,
